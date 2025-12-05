@@ -110,7 +110,7 @@ separados.
  5.  **Execute o servidor de desenvolvimento:**     ```sh 
      npm run dev 
      ``` 
-     A aplicação React será iniciada e estará acessível no seu navegador (geralmente em `http://localhost:5173`). 
+     A aplicação React será iniciada e estará acessível no seu navegador (geralmente em `http://localhost:8080`). 
 
  Agora você pode interagir com a interface de chat, que enviará requisições para a sua API RAG local. 
 
