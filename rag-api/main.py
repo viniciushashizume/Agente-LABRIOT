@@ -19,6 +19,8 @@ from langchain.schema.output_parser import StrOutputParser
 from dotenv import load_dotenv
 load_dotenv()
 
+from challenge_agent import invoke_challenge_agent 
+from validation_agent import invoke_validation_agent
 # --- CONFIGURAÇÃO INICIAL E CARREGAMENTO DO MODELO ---
 
 # Modelo de embedding que será usado
@@ -40,8 +42,10 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
 
 
 lista_de_documentos_pdf = [
-    "Documentação Syna.pdf",
-    "Python do ZERO à Programação Orientada a Objetos (Fernando Belomé Feltrin).pdf"
+    "Documentação Syna-2.pdf",
+    "Documentação APS.pdf",
+    "Documentação Alimentadores.pdf",
+    "Documentação NEXA.pdf",
 ]
 # -------------------------------------
 
@@ -97,10 +101,13 @@ app.add_middleware(
 
 # Modelos Pydantic
 class ChatRequest(BaseModel):
-    message: str
+    user_question: str
 
 class ChatResponse(BaseModel):
-    response: str
+    id: str
+    sender: str
+    content: str
+    validation_response: str | None
 
 # Prompt Template (o mesmo de antes, focado na documentação)
 prompt_template = ChatPromptTemplate.from_template("""
@@ -130,6 +137,26 @@ prompt_template = ChatPromptTemplate.from_template("""
 
     RESPOSTA DO ASSISTENTE:
 """)
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest):
+    # Passo 1: Obter a resposta do agente principal (LABRIOT)
+    # (Estou supondo os nomes das funções, ajuste conforme seu código)
+    labriot_response_text = invoke_challenge_agent(request.user_question)
+
+    # Passo 2: Obter a validação do agente validador
+    validation_explanation = invoke_validation_agent(
+        question=request.user_question,
+        response=labriot_response_text
+    )
+
+    # Passo 3: Retornar ambas as respostas para o frontend
+    return ChatResponse(
+        id="some-unique-id", # Gere um ID
+        sender="agent",
+        content=labriot_response_text,
+        validation_response=validation_explanation
+    )
 
 # Endpoint da API
 @app.post("/api/chat", response_model=ChatResponse)

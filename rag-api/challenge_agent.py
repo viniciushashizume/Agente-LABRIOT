@@ -43,9 +43,10 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.8) # Temper
 
 # --- Lógica de carregamento de múltiplos documentos ---
 lista_de_documentos_pdf = [
-    "Documentação Syna.pdf",
-    "Python do ZERO à Programação Orientada a Objetos (Fernando Belomé Feltrin).pdf"
-    # Adicione aqui os PDFs de JavaScript, C++, Cachorros, etc.
+    "Documentação Syna-2.pdf",
+    "Documentação APS.pdf",
+    "Documentação Alimentadores.pdf",
+    "Documentação NEXA.pdf",
 ]
 documentos_totais = []
 print("Iniciando o carregamento dos documentos locais (Agente de Desafios)...")
