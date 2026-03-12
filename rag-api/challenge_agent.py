@@ -1,4 +1,4 @@
-# Nome sugerido para este arquivo: challenge_agent.py
+# challenge_agent.py
 
 import os
 import requests
@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, List
-from operator import itemgetter # <<< ADICIONADO
+from operator import itemgetter
 
 # Importações do LangChain
 from langchain_community.vectorstores import FAISS
@@ -39,7 +39,7 @@ except Exception as e:
     print(f"Erro ao carregar o modelo de embedding: {e}")
     exit()
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.8) # Temperatura um pouco mais alta
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.8)
 
 # --- Lógica de carregamento de múltiplos documentos ---
 lista_de_documentos_pdf = [
@@ -95,12 +95,11 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
-    num_questions: int = 3 # <<< MODIFICADO: Adicionado com padrão 3
+    num_questions: int = 3
 
 class ChallengeResponse(BaseModel):
     challenges: List[Any] 
 
-# <<< INÍCIO DA MODIFICAÇÃO DO PROMPT >>>
 prompt_template_desafio = ChatPromptTemplate.from_template("""
     Você é um "Mestre de Desafios" e sua especialidade é criar desafios de múltipla escolha com base em documentações técnicas, formatando a saída como um array JSON.
 
@@ -151,7 +150,6 @@ prompt_template_desafio = ChatPromptTemplate.from_template("""
 
     ARRAY JSON DE {num_questions} DESAFIOS GERADOS:
 """)
-# <<< FIM DA MODIFICAÇÃO DO PROMPT >>>
 
 AGENT_CARD = {
   "a2a_version": "0.1.0",
@@ -161,7 +159,7 @@ AGENT_CARD = {
   "capabilities": [
     {
       "id": "generate-multiple-choice",
-      "description": "Gera N desafios de múltipla escolha sobre um tópico.", # MODIFICADO
+      "description": "Gera N desafios de múltipla escolha sobre um tópico.",
       "type": "http",
       "endpoint": "/api/challenge", 
       "method": "POST",
@@ -169,7 +167,7 @@ AGENT_CARD = {
         "type": "object",
         "properties": {
           "message": { "type": "string", "description": "O tópico (ex: 'Python', 'Syna')" },
-          "num_questions": { "type": "integer", "description": "Número de desafios a gerar (default: 3)" } # MODIFICADO
+          "num_questions": { "type": "integer", "description": "Número de desafios a gerar (default: 3)" } 
         },
         "required": ["message"]
       },
@@ -187,7 +185,6 @@ AGENT_CARD = {
 async def get_agent_card():
     return AGENT_CARD
 
-# <<< INÍCIO DA MODIFICAÇÃO DA FUNÇÃO >>>
 @app.post("/api/challenge", response_model=ChallengeResponse)
 async def generate_challenge(request: ChatRequest) -> ChallengeResponse:
     error_challenge = {
@@ -200,7 +197,6 @@ async def generate_challenge(request: ChatRequest) -> ChallengeResponse:
         error_challenge["description"] = "O sistema de busca (RAG) não foi inicializado."
         return ChallengeResponse(challenges=[error_challenge]) 
 
-    # MODIFICADO: A chain agora espera um dicionário com "message" e "num_questions"
     rag_chain = (
         {
             "context": itemgetter("message") | retriever,
@@ -213,14 +209,12 @@ async def generate_challenge(request: ChatRequest) -> ChallengeResponse:
     )
 
     try:
-        # MODIFICADO: Passa o dicionário para o invoke
         bot_response_string = rag_chain.invoke({
             "message": request.message,
             "num_questions": request.num_questions
         })
         
         try:
-            # Limpeza
             clean_response_string = bot_response_string.strip().lstrip("```json").rstrip("```").strip()
             
             json_start = clean_response_string.find('[')
@@ -254,7 +248,38 @@ async def generate_challenge(request: ChatRequest) -> ChallengeResponse:
         print(f"Erro inesperado na chain RAG: {e}")
         error_challenge["description"] = f"Erro interno no servidor: {e}"
         return ChallengeResponse(challenges=[error_challenge])
-# <<< FIM DA MODIFICAÇÃO DA FUNÇÃO >>>
+
+# --- FUNÇÃO PARA INTEGRAÇÃO COM MAIN.PY ---
+def invoke_challenge_agent(question: str) -> str:
+    """
+    Função auxiliar para permitir que o main.py importe e chame o agente diretamente
+    sem precisar fazer uma requisição HTTP.
+    """
+    if not retriever:
+        return "Erro: O sistema de busca (RAG) não foi inicializado no Agente de Desafios."
+
+    rag_chain = (
+        {
+            "context": itemgetter("message") | retriever,
+            "question": itemgetter("message"),
+            "num_questions": itemgetter("num_questions")
+        }
+        | prompt_template_desafio
+        | llm
+        | StrOutputParser()
+    )
+
+    try:
+        # Invoca a chain passando a pergunta e fixando em 3 desafios por padrão
+        bot_response_string = rag_chain.invoke({
+            "message": question,
+            "num_questions": 3 
+        })
+        return bot_response_string
+    except Exception as e:
+        print(f"Erro na execução do invoke_challenge_agent: {e}")
+        return f"Erro ao gerar desafios: {e}"
+
 
 if __name__ == "__main__":
     import uvicorn

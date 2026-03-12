@@ -292,6 +292,58 @@ async def validate_answer(request: ValidationRequest) -> ValidationResponse:
             feedback=f"Ocorreu um erro inesperado durante a validação: {str(e)}"
         )
 
+# --- FUNÇÃO PARA INTEGRAÇÃO COM MAIN.PY ---
+def invoke_validation_agent(question: str, response: str) -> str:
+    """
+    Função auxiliar para permitir que o main.py importe e chame o agente diretamente.
+    """
+    if not retriever:
+        return "Erro: O sistema de busca (RAG) não foi inicializado no Agente de Validação."
+
+    # Cria um desafio simulado ('mock') apenas para encaixar no formato que o prompt exige
+    mock_challenge = {
+        "description": question,
+        "type": "essay"
+    }
+    challenge_json_string = json.dumps(mock_challenge, ensure_ascii=False)
+    search_query = question + " " + response
+
+    validation_chain = (
+        {
+            "context": itemgetter("search_query") | retriever,
+            "challenge_json": itemgetter("challenge_json"),
+            "user_answer": itemgetter("user_answer")
+        }
+        | prompt_template_validation
+        | llm
+        | StrOutputParser()
+    )
+
+    try:
+        raw_response = validation_chain.invoke({
+            "search_query": search_query,
+            "challenge_json": challenge_json_string,
+            "user_answer": response
+        })
+
+        # Limpar o retorno do LLM para pegar apenas o JSON
+        json_str = raw_response
+        if "```json" in raw_response:
+            match = re.search(r"```json\s*([\s\S]+?)\s*```", raw_response)
+            if match:
+                json_str = match.group(1).strip()
+        elif raw_response.strip().startswith("{") and raw_response.strip().endswith("}"):
+             json_str = raw_response.strip()
+
+        result_json = json.loads(json_str)
+        
+        # Retorna apenas o feedback formatado
+        status = "✅ CORRETO" if result_json.get("is_correct") else "❌ INCORRETO"
+        return f"{status} - {result_json.get('feedback', '')}"
+        
+    except Exception as e:
+        print(f"Erro na execução do invoke_validation_agent: {e}")
+        return f"Erro ao validar resposta: {e}"
 
 if __name__ == "__main__":
     import uvicorn

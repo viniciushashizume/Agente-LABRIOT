@@ -42,6 +42,9 @@ export interface ValidationApiResponse {
 /**
  * Send a message to the RAG API and get a response
  */
+/**
+ * Send a message to the RAG API and get a response
+ */
 export async function sendChatMessage(message: string): Promise<string> {
   try {
     const response = await fetch(CHAT_ENDPOINT, {
@@ -49,7 +52,8 @@ export async function sendChatMessage(message: string): Promise<string> {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message } as ChatApiRequest),
+      // CORREÇÃO: Enviando 'user_question' para bater com o modelo do main.py
+      body: JSON.stringify({ user_question: message }), 
     });
 
     if (!response.ok) {
@@ -63,7 +67,6 @@ export async function sendChatMessage(message: string): Promise<string> {
     throw error;
   }
 }
-
 /**
  * Sends a topic to the Challenge Agent API and gets a challenge object.
  */
