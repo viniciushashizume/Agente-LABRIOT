@@ -80,27 +80,35 @@ else:
         except Exception as e:
             print(f"Erro ao processar o PDF '{caminho_do_pdf}': {e}")
 
-    # 2. Carregar Documentação Web (Python)
-    print("\n--- Carregando Documentação Web (Python) ---")
-    url_documentacao = "https://docs.python.org/pt-br/3/tutorial/"
+    # 2. Carregar Documentação Web (C++ e JavaScript)
+    print("\n--- Carregando Documentação Web (C++ e JS) ---")
+    
+    # Lista de URLs oficiais/tutoriais para as linguagens
+    urls_documentacao = [
+        "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Guide", # Guia completo de JS da MDN
+        "https://cplusplus.com/doc/tutorial/",
+        "https://docs.python.org/3/tutorial/index.html" # Tutorial detalhado de C++
+    ]
     
     def extrair_texto_limpo(html_content):
         soup = BeautifulSoup(html_content, "html.parser")
-        for script in soup(["script", "style"]):
+        for script in soup(["script", "style", "nav", "footer", "header"]): # Removendo tags desnecessárias para focar no conteúdo
             script.extract()
         return soup.get_text(separator=" ", strip=True)
 
-    try:
-        loader = RecursiveUrlLoader(
-            url=url_documentacao,
-            max_depth=2, 
-            extractor=extrair_texto_limpo
-        )
-        docs_web = loader.load()
-        documentos_totais.extend(docs_web)
-        print(f"Web Scraping concluído. {len(docs_web)} páginas extraídas.")
-    except Exception as e:
-        print(f"Erro ao realizar web scraping: {e}")
+    for url in urls_documentacao:
+        print(f"Iniciando extração de: {url}")
+        try:
+            loader = RecursiveUrlLoader(
+                url=url,
+                max_depth=1, # Profundidade ajustada. Cuidado ao aumentar para não exceder limites.
+                extractor=extrair_texto_limpo
+            )
+            docs_web = loader.load()
+            documentos_totais.extend(docs_web)
+            print(f"Web Scraping concluído para {url}. {len(docs_web)} páginas extraídas.")
+        except Exception as e:
+            print(f"Erro ao realizar web scraping da URL {url}: {e}")
 
     # 3. Processar e Criar o Banco Vetorial
     print(f"\nTotal combinado: {len(documentos_totais)} páginas/documentos.")
@@ -141,7 +149,6 @@ class ChatResponse(BaseModel):
     validation_response: str | None = None
     response: str | None = None 
 
-# Prompt atualizado para cobrir tanto as regras internas quanto ensino de programação
 prompt_template = ChatPromptTemplate.from_template("""
     Você é um assistente técnico especializado e um tutor de programação.
     Sua base de conhecimento contém documentações de projetos internos (PDFs) e documentações oficiais de linguagens de programação (Web).
@@ -194,10 +201,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
     return ChatResponse(response=bot_response)
 
 def invoke_challenge_agent(question: str) -> str:
-    """
-    Função auxiliar para permitir que o main.py importe e chame o agente diretamente
-    sem precisar fazer uma requisição HTTP.
-    """
+    from operator import itemgetter # Import necessário para esta função funcionar corretamente
+    
     if not retriever:
         return "Erro: O sistema de busca (RAG) não foi inicializado no Agente de Desafios."
 
@@ -207,7 +212,7 @@ def invoke_challenge_agent(question: str) -> str:
             "question": itemgetter("message"),
             "num_questions": itemgetter("num_questions")
         }
-        | prompt_template_desafio
+        | prompt_template_desafio # ATENÇÃO: Verifique se este template está definido no seu escopo
         | llm
         | StrOutputParser()
     )
