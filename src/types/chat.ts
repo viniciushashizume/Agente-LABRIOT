@@ -5,6 +5,7 @@ export interface Message {
   content: string;
   role: "user" | "assistant";
   timestamp: Date;
+  validation_response?: string | null;
 }
 
 export interface ChatSession {

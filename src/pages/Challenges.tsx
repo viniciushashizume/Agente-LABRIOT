@@ -139,7 +139,6 @@ export default function Challenges() {
   const getAreaName = (area: string) => {
     const areaNames: Record<string, string> = {
       python: "Python",
-      javascript: "JavaScript",
       cpp: "C++",
       syna: "Syna",
       "dog-feeder": "Alimentador de Cachorros",

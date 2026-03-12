@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 
 type AreaCategory = "programming" | "projects" | null;
 type ProgrammingLanguage = "python" | "javascript" | "cpp";
-type ProjectType = "syna" | "dog-feeder" | "placeholder";
+type ProjectType = "syna" | "dog-feeder" | "nexa" | "aps";
 
 export default function AreaSelection() {
   const navigate = useNavigate();
@@ -90,19 +90,19 @@ export default function AreaSelection() {
                   <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-muted/50">
                     <RadioGroupItem value="python" id="python" />
                     <Label htmlFor="python" className="flex-1 cursor-pointer">
-                      Python - Linguagem versátil e poderosa
+                      Python
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-muted/50">
                     <RadioGroupItem value="javascript" id="javascript" />
                     <Label htmlFor="javascript" className="flex-1 cursor-pointer">
-                      JavaScript - Para desenvolvimento web e além
+                      JavaScript
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-muted/50">
                     <RadioGroupItem value="cpp" id="cpp" />
                     <Label htmlFor="cpp" className="flex-1 cursor-pointer">
-                      C++ - Alto desempenho e controle
+                      C++
                     </Label>
                   </div>
                 </RadioGroup>
@@ -128,13 +128,22 @@ export default function AreaSelection() {
                     <Label htmlFor="dog-feeder" className="flex-1 cursor-pointer">
                       Alimentador de Cachorros - IoT para pets
                     </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-muted/50">
-                    <RadioGroupItem value="smart-garden" id="smart-garden" />
-                    <Label htmlFor="smart-garden" className="flex-1 cursor-pointer">
-                      Jardim Inteligente - Automação de irrigação
-                    </Label>
-                  </div>
+                                  </div>
+                <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-muted/50">
+                  <RadioGroupItem value="nexa" id="nexa" />
+                  {/* Remove the "/" from the end of the opening Label tag */}
+                  <Label htmlFor="nexa" className="flex-1 cursor-pointer">
+                    Nexa
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-muted/50">
+                  {/* Note: Ensure 'id' matches the 'htmlFor' below (you had "nexa" and "aps" mixed) */}
+                  <RadioGroupItem value="aps" id="aps" />
+                  <Label htmlFor="aps" className="flex-1 cursor-pointer">
+                    APS
+                  </Label>
+                </div>
                 </RadioGroup>
               </CardContent>
             </Card>
