@@ -85,9 +85,18 @@ else:
     
     # Lista de URLs oficiais/tutoriais para as linguagens
     urls_documentacao = [
-        "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Guide", # Guia completo de JS da MDN
-        "https://cplusplus.com/doc/tutorial/",
-        "https://docs.python.org/3/tutorial/index.html" # Tutorial detalhado de C++
+        # JavaScript (Funcionando)
+        #"https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Guide", 
+        
+        "https://docs.python.org/3/tutorial/index.html",
+        # Python (Wiki oficial da comunidade em PT-BR, excelente para extração em profundidade 1)
+        #"https://wiki.python.org.br/TutorialPython",
+        
+        # Alternativa Python (Página única de um guia excelente)
+        # "https://wiki.python.org.br/GuiaDeProgramacao",
+        
+        # Alternativa C++ (cppreference - Referência muito completa)
+         #"https://pt.cppreference.com/w/cpp/language" #funcionando
     ]
     
     def extrair_texto_limpo(html_content):
@@ -101,8 +110,12 @@ else:
         try:
             loader = RecursiveUrlLoader(
                 url=url,
-                max_depth=1, # Profundidade ajustada. Cuidado ao aumentar para não exceder limites.
-                extractor=extrair_texto_limpo
+                max_depth=2, # Mantemos 1 para não sobrecarregar
+                extractor=extrair_texto_limpo,
+                # ADICIONE O HEADER ABAIXO PARA EVITAR BLOQUEIOS
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
             )
             docs_web = loader.load()
             documentos_totais.extend(docs_web)
@@ -151,17 +164,15 @@ class ChatResponse(BaseModel):
 
 prompt_template = ChatPromptTemplate.from_template("""
     Você é um assistente técnico especializado e um tutor de programação.
-    Sua base de conhecimento contém documentações de projetos internos (PDFs) e documentações oficiais de linguagens de programação (Web).
-
-    Baseado estritamente no CONTEXTO abaixo, responda à PERGUNTA do usuário de forma clara e objetiva.
+    Sua base de conhecimento principal contém documentações de projetos internos e linguagens.
 
     REGRAS:
-    1.  **Foque no Contexto:** Baseie-se apenas nas informações fornecidas no contexto.
-    2.  **Seja Didático para Código:** Se a pergunta for sobre programação, explique passo a passo e mostre exemplos de código se houver no contexto.
-    3.  **Seja Preciso para Projetos:** Se a pergunta for sobre os projetos internos (Syna, NEXA, etc.), aja como um guia de referência e cite as regras exatas do documento.
-    4.  **Limites do Conhecimento:** Se a informação não estiver no contexto, informe isso claramente.
+    1.  **Priorize o Contexto:** Responda com base no CONTEXTO fornecido sempre que possível (especialmente para os projetos Syna, NEXA, etc).
+    2.  **Seja Didático:** Explique passo a passo e mostre exemplos de código.
+    3.  **Flexibilidade para Programação Básica:** Se a pergunta for sobre SINTAXE BÁSICA (ex: como declarar uma variável, loops) e isso não estiver no CONTEXTO, você PODE usar seu conhecimento prévio de C++, Python ou JavaScript para ensinar o usuário.
+    4.  **Projetos Internos:** Se a pergunta for sobre um projeto interno e não estiver no contexto, diga que não sabe.
 
-    CONTEXTO (Documentações):
+    CONTEXTO:
     {context}
 
     PERGUNTA DO USUÁRIO:
