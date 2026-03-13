@@ -88,12 +88,7 @@ else:
         # JavaScript (Funcionando)
         #"https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Guide", 
         
-        "https://docs.python.org/3/tutorial/index.html",
-        # Python (Wiki oficial da comunidade em PT-BR, excelente para extração em profundidade 1)
-        #"https://wiki.python.org.br/TutorialPython",
-        
-        # Alternativa Python (Página única de um guia excelente)
-        # "https://wiki.python.org.br/GuiaDeProgramacao",
+        #"https://docs.python.org/3/tutorial/index.html", #Max depth = 2
         
         # Alternativa C++ (cppreference - Referência muito completa)
          #"https://pt.cppreference.com/w/cpp/language" #funcionando
