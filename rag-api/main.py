@@ -89,8 +89,9 @@ if collection.count_documents({}) == 0:
     print("\n--- Carregando Documentação Web (C++ e JS) ---")
     
     urls_documentacao = [
-        #"https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Guide", 
-        #"https://pt.cppreference.com/w/cpp/language"
+        "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Guide", 
+        "https://pt.cppreference.com/w/cpp/language",
+        "https://docs.python.org/3/tutorial/index.html"
     ]
     
     def extrair_texto_limpo(html_content):
@@ -101,7 +102,7 @@ if collection.count_documents({}) == 0:
 
     # ---> CONTROLE DE INSERÇÃO WEB <---
     # Mude para True futuramente quando quiser processar os links e jogar no MongoDB
-    INSERIR_WEB_NO_BANCO = False
+    INSERIR_WEB_NO_BANCO = True
 
     if INSERIR_WEB_NO_BANCO:
         for url in urls_documentacao:
@@ -109,7 +110,7 @@ if collection.count_documents({}) == 0:
             try:
                 loader = RecursiveUrlLoader(
                     url=url,
-                    max_depth=2,
+                    max_depth=3,
                     extractor=extrair_texto_limpo,
                     headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
