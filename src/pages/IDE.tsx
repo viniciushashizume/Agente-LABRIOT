@@ -12,6 +12,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import JSCPP from "JSCPP";
 
 type Language = "python" | "javascript" | "cpp";
 
