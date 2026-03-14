@@ -129,7 +129,7 @@ export default function UnderConstruction({ title }: { title: string }) {
         Em construção{dots}
       </p>
       <p className="text-sm text-muted-foreground mb-12 max-w-md text-center">
-        Nossos coelhos construtores estão trabalhando duro para preparar esta página! 🐰🔨
+        Os coelhos do LABRIOT estão trabalhando duro para preparar esta página! 🐰🔨
       </p>
 
       {/* Construction scene */}
