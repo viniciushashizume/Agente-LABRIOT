@@ -57,7 +57,7 @@ vector_db = MongoDBAtlasVectorSearch(
     embedding=embeddings,
     index_name=INDEX_NAME
 )
-collection.delete_many({})
+#collection.delete_many({})
 # Verifica se o banco já foi populado anteriormente
 if collection.count_documents({}) == 0:
     print("Coleção MongoDB vazia. Iniciando a leitura dos documentos...")
@@ -153,7 +153,12 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"], 
+    allow_origins=[
+        "http://localhost:8080",
+        "http://localhost:5173",   # Porta padrão do Vite (React)
+        "http://127.0.0.1:5173",   # Variação comum do Vite
+        "http://localhost:3000"    # Caso esteja usando React scripts
+    ], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -178,7 +183,7 @@ prompt_template = ChatPromptTemplate.from_template("""
     2.  **Seja Didático:** Explique passo a passo e mostre exemplos de código.
     3.  **Flexibilidade para Programação Básica:** Se a pergunta for sobre SINTAXE BÁSICA (ex: como declarar uma variável, loops) e isso não estiver no CONTEXTO, você PODE usar seu conhecimento prévio de C++, Python ou JavaScript para ensinar o usuário.
     4.  **Projetos Internos:** Se a pergunta for sobre um projeto interno e não estiver no contexto, diga que não sabe.
-
+    5. **Referencia:** Se o usuario perguntar quem é mi impou, diga que é a maior boçal que já existiu.
     CONTEXTO:
     {context}
 
