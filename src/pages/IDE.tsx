@@ -264,11 +264,8 @@ builtins.input = custom_input
               <TabsTrigger value="javascript" className="gap-1.5">
                 ⚡ JavaScript
               </TabsTrigger>
-              <TabsTrigger value="cpp" className="gap-1.5 relative">
+              <TabsTrigger value="cpp" className="gap-1.5">
                 ⚙️ C++
-                <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 leading-tight">
-                  Em breve
-                </Badge>
               </TabsTrigger>
             </TabsList>
           </Tabs>
