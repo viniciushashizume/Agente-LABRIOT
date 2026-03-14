@@ -1,39 +1,72 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Play, Trash2, Terminal, Loader2 } from "lucide-react";
+import { Play, Trash2, Terminal, Loader2, Code2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
+import { javascript } from '@codemirror/lang-javascript';
+import { cpp } from '@codemirror/lang-cpp';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+
+type Language = "python" | "javascript" | "cpp";
 
 interface ExecutionResult {
   code: string;
   output: string;
   error?: string;
   timestamp: Date;
+  language: Language;
 }
+
+const DEFAULT_CODE: Record<Language, string> = {
+  python: "# Escreva seu código Python aqui\nprint('Hello, World!')\n\n# Experimente usar input:\n# nome = input('Digite seu nome: ')\n# print(f'Olá, {nome}!')",
+  javascript: "// Escreva seu código JavaScript aqui\nconsole.log('Hello, World!');\n\n// Experimente usar prompt:\n// const nome = prompt('Digite seu nome: ');\n// console.log(`Olá, ${nome}!`);",
+  cpp: "// C++ (em breve)\n// Suporte a C++ será adicionado em breve!\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << \"Hello, World!\" << endl;\n    return 0;\n}",
+};
+
+const LANG_LABELS: Record<Language, string> = {
+  python: "Python",
+  javascript: "JavaScript",
+  cpp: "C++",
+};
 
 export default function IDE() {
   const { toast } = useToast();
-  const [code, setCode] = useState<string>("# Escreva seu código Python aqui\nprint('Hello, World!')\n\n# Experimente usar input:\n# nome = input('Digite seu nome: ')\n# print(f'Olá, {nome}!')");
+  const [language, setLanguage] = useState<Language>("python");
+  const [codes, setCodes] = useState<Record<Language, string>>(DEFAULT_CODE);
   const [output, setOutput] = useState<string>("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [isPyodideReady, setIsPyodideReady] = useState(false);
   const [history, setHistory] = useState<ExecutionResult[]>([]);
   const pyodideRef = useRef<any>(null);
-  
-  // Estados para input
-  /*const [showInputDialog, setShowInputDialog] = useState(false);
-  const [inputPrompt, setInputPrompt] = useState("");
-  const [inputValue, setInputValue] = useState("");
-  const inputResolveRef = useRef<((value: string) => void) | null>(null);*/
+
   const [isWaitingForInput, setIsWaitingForInput] = useState(false);
   const [currentInputValue, setCurrentInputValue] = useState("");
   const inputResolveRef = useRef<((value: string) => void) | null>(null);
+
+  const code = codes[language];
+  const setCode = (val: string) => setCodes(prev => ({ ...prev, [language]: val }));
+
+  const editorExtensions = useMemo(() => {
+    switch (language) {
+      case "python": return [python()];
+      case "javascript": return [javascript()];
+      case "cpp": return [cpp()];
+    }
+  }, [language]);
+
+  const isReady = language === "python" ? isPyodideReady : language === "javascript" ? true : false;
+  const statusLabel = language === "python"
+    ? (isPyodideReady ? "Python Pronto" : "Carregando Python...")
+    : language === "javascript"
+      ? "JavaScript Pronto"
+      : "C++ (em breve)";
+
   // Inicializar Pyodide
   useEffect(() => {
     const loadPyodide = async () => {
@@ -42,21 +75,14 @@ export default function IDE() {
         const pyodide = await window.loadPyodide({
           indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/",
         });
-        
-        // Configurar stdout e stdin
         await pyodide.runPythonAsync(`
           import sys
           from io import StringIO
           sys.stdout = StringIO()
         `);
-        
         pyodideRef.current = pyodide;
         setIsPyodideReady(true);
-        
-        toast({
-          title: "Python pronto!",
-          description: "Ambiente Python carregado e pronto para uso",
-        });
+        toast({ title: "Python pronto!", description: "Ambiente Python carregado e pronto para uso" });
       } catch (error) {
         toast({
           title: "Erro ao carregar Python",
@@ -65,159 +91,183 @@ export default function IDE() {
         });
       }
     };
-
     loadPyodide();
   }, [toast]);
 
-  // Função para simular input() do Python
+  // Python input handler
   const handleInput = (prompt: string): Promise<string> => {
     return new Promise((resolve) => {
-      // Adiciona o prompt (ex: "Digite seu nome: ") ao console
       setOutput(prev => prev + prompt);
-      
-      // Ativa o modo "esperando por input"
       setIsWaitingForInput(true);
-      setCurrentInputValue(""); // Limpa o input anterior
+      setCurrentInputValue("");
       inputResolveRef.current = resolve;
     });
   };
 
-const handleConsoleSubmit = (value: string) => {
-  if (inputResolveRef.current) {
-    // 1. Adiciona o valor que o usuário digitou ao console
-    setOutput(prev => prev + value + "\n");
-    
-    // 2. Resolve a Promise do Python com o valor
-    inputResolveRef.current(value);
-    inputResolveRef.current = null;
-    
-    // 3. Desativa o modo "esperando por input"
-    setIsWaitingForInput(false);
-    setCurrentInputValue("");
-  }
-};
+  const handleConsoleSubmit = (value: string) => {
+    if (inputResolveRef.current) {
+      setOutput(prev => prev + value + "\n");
+      inputResolveRef.current(value);
+      inputResolveRef.current = null;
+      setIsWaitingForInput(false);
+      setCurrentInputValue("");
+    }
+  };
 
-  // Executar código Python
+  // Execute Python
+  const executePython = async () => {
+    if (!isPyodideReady || !pyodideRef.current) return;
+    const pyodide = pyodideRef.current;
+
+    await pyodide.runPythonAsync(`sys.stdout = StringIO()`);
+    pyodide.globals.set("js_input", handleInput);
+
+    await pyodide.runPythonAsync(`
+import builtins
+import js
+
+async def custom_input(prompt=''):
+    result = await js_input(prompt)
+    return result
+
+builtins.input = custom_input
+`);
+
+    const processedCode = code.replace(/(\s*)(\w+\s*=\s*)?input\(/g, '$1$2await input(');
+    const lines = processedCode.split('\n').map(line => '    ' + line);
+    const wrappedCode = 'async def __user_code__():\n' + lines.join('\n') + '\n\nawait __user_code__()';
+
+    await pyodide.runPythonAsync(wrappedCode);
+
+    const stdout = await pyodide.runPythonAsync(`sys.stdout.getvalue()`);
+    return stdout || "Código executado com sucesso (sem output)";
+  };
+
+  // Execute JavaScript
+  const executeJavaScript = async () => {
+    const logs: string[] = [];
+
+    // Create a sandboxed console
+    const sandboxConsole = {
+      log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+      error: (...args: any[]) => logs.push('ERROR: ' + args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+      warn: (...args: any[]) => logs.push('WARN: ' + args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+      info: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+      table: (data: any) => logs.push(JSON.stringify(data, null, 2)),
+      clear: () => { logs.length = 0; },
+      dir: (obj: any) => logs.push(JSON.stringify(obj, null, 2)),
+    };
+
+    // prompt() replacement that uses our input system
+    const sandboxPrompt = (msg: string = '') => {
+      // For simplicity, prompt is synchronous in JS — we use window.prompt as fallback
+      return window.prompt(msg) || '';
+    };
+
+    const sandboxAlert = (msg: string = '') => {
+      logs.push(`[alert] ${msg}`);
+    };
+
+    // Build and execute function
+    const fn = new Function('console', 'prompt', 'alert', code);
+    fn(sandboxConsole, sandboxPrompt, sandboxAlert);
+
+    return logs.length > 0 ? logs.join('\n') : "Código executado com sucesso (sem output)";
+  };
+
+  // Main execute
   const executeCode = async () => {
-    if (!isPyodideReady || !pyodideRef.current || !code.trim()) return;
+    if (!code.trim() || !isReady) return;
 
     setIsExecuting(true);
     setOutput("");
 
     try {
-      const pyodide = pyodideRef.current;
-      
-      // Limpar stdout anterior
-      await pyodide.runPythonAsync(`
-        sys.stdout = StringIO()
-      `);
+      let result: string;
 
-      // Interceptar chamadas de input()
-      pyodide.globals.set("js_input", handleInput);
-      
-      // Configurar input customizado
-    await pyodide.runPythonAsync(`
-      import builtins
-      import js
-      
-      async def custom_input(prompt=''):
-          # O 'js_input' (nosso handleInput) já mostra o prompt
-          result = await js_input(prompt)
-          # O 'handleConsoleSubmit' já mostra o 'result' (eco)
-          # Então não fazemos NENHUM print aqui.
-          return result
-      
-      builtins.input = custom_input
-    `);
+      if (language === "python") {
+        result = await executePython();
+      } else if (language === "javascript") {
+        result = await executeJavaScript();
+      } else {
+        toast({ title: "Em breve", description: "Suporte a C++ será adicionado em breve!", variant: "destructive" });
+        return;
+      }
 
-      // Adicionar await automaticamente antes de input()
-      const processedCode = code.replace(/(\s*)(\w+\s*=\s*)?input\(/g, '$1$2await input(');
-      
-      // Envolver o código do usuário em uma função assíncrona
-      const wrappedCode = [
-        'async def __user_code__():',
-        ...processedCode.split('\n').map(line => '    ' + line),
-        '',
-        'await __user_code__()'
-      ].join('\n');
-      
-      // Executar código do usuário
-      await pyodide.runPythonAsync(wrappedCode);
-      
-      // Capturar output
-      const stdout = await pyodide.runPythonAsync(`
-        sys.stdout.getvalue()
-      `);
-
-      const result = stdout || "Código executado com sucesso (sem output)";
       setOutput(result);
-
-      // Adicionar ao histórico
-      const executionResult: ExecutionResult = {
-        code,
-        output: result,
-        timestamp: new Date(),
-      };
-      setHistory(prev => [executionResult, ...prev].slice(0, 10));
-
-      toast({
-        title: "Executado com sucesso",
-        description: "Código Python executado",
-      });
+      setHistory(prev => [{ code, output: result, timestamp: new Date(), language }, ...prev].slice(0, 10));
+      toast({ title: "Executado com sucesso", description: `Código ${LANG_LABELS[language]} executado` });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       setOutput(`Erro: ${errorMessage}`);
-      
-      const executionResult: ExecutionResult = {
-        code,
-        output: "",
-        error: errorMessage,
-        timestamp: new Date(),
-      };
-      setHistory(prev => [executionResult, ...prev].slice(0, 10));
-
-      toast({
-        title: "Erro de execução",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setHistory(prev => [{ code, output: "", error: errorMessage, timestamp: new Date(), language }, ...prev].slice(0, 10));
+      toast({ title: "Erro de execução", description: errorMessage, variant: "destructive" });
     } finally {
       setIsExecuting(false);
     }
   };
 
-  const clearConsole = () => {
-    setOutput("");
-  };
-
+  const clearConsole = () => setOutput("");
   const clearHistory = () => {
     setHistory([]);
-    toast({
-      title: "Histórico limpo",
-      description: "Todas as execuções anteriores foram removidas",
-    });
+    toast({ title: "Histórico limpo", description: "Todas as execuções anteriores foram removidas" });
+  };
+
+  const handleLanguageChange = (val: string) => {
+    if (val === "python" || val === "javascript" || val === "cpp") {
+      setLanguage(val);
+      setOutput("");
+    }
   };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold">Python IDE</h1>
+          <h1 className="text-4xl font-bold flex items-center gap-3">
+            <Code2 className="h-9 w-9" />
+            IDE Online
+          </h1>
           <p className="text-muted-foreground mt-2">
-            Execute código Python diretamente no navegador
+            Execute código diretamente no navegador
           </p>
         </div>
-        {isPyodideReady ? (
-          <div className="flex items-center gap-2 text-green-600">
-            <Terminal className="h-5 w-5" />
-            <span className="font-medium">Python Pronto</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Carregando Python...</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Language Selector */}
+          <Tabs value={language} onValueChange={handleLanguageChange}>
+            <TabsList>
+              <TabsTrigger value="python" className="gap-1.5">
+                🐍 Python
+              </TabsTrigger>
+              <TabsTrigger value="javascript" className="gap-1.5">
+                ⚡ JavaScript
+              </TabsTrigger>
+              <TabsTrigger value="cpp" className="gap-1.5 relative">
+                ⚙️ C++
+                <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 leading-tight">
+                  Em breve
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Status indicator */}
+          {isReady ? (
+            <div className="flex items-center gap-2 text-green-600">
+              <Terminal className="h-5 w-5" />
+              <span className="font-medium text-sm">{statusLabel}</span>
+            </div>
+          ) : language === "cpp" ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span className="text-sm">{statusLabel}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">{statusLabel}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -225,7 +275,7 @@ const handleConsoleSubmit = (value: string) => {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Editor de Código</CardTitle>
-            <CardDescription>Escreva seu código Python aqui</CardDescription>
+            <CardDescription>Escreva seu código {LANG_LABELS[language]} aqui</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="border rounded-lg overflow-hidden">
@@ -233,7 +283,7 @@ const handleConsoleSubmit = (value: string) => {
                 value={code}
                 height="400px"
                 theme={oneDark}
-                extensions={[python()]}
+                extensions={editorExtensions}
                 onChange={(value) => setCode(value)}
                 className="text-base"
               />
@@ -241,7 +291,7 @@ const handleConsoleSubmit = (value: string) => {
             <div className="flex gap-2">
               <Button
                 onClick={executeCode}
-                disabled={!isPyodideReady || isExecuting}
+                disabled={!isReady || isExecuting}
                 className="flex-1"
               >
                 {isExecuting ? (
@@ -265,48 +315,39 @@ const handleConsoleSubmit = (value: string) => {
         </Card>
 
         {/* Console */}
-<Card>
-  <CardHeader>
-    <CardTitle>Console</CardTitle>
-    <CardDescription>Saída da execução</CardDescription>
-  </CardHeader>
-  <CardContent>
-    {/* Altura foi diminuída para (ex) 360px para caber o input abaixo */}
-    <ScrollArea className="h-[360px] w-full rounded-md border bg-black/90 p-4">
-      <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-        {output || "Aguardando execução..."}
-        {isWaitingForInput && (
-          // Simula um cursor de terminal piscando
-          <span className="animate-pulse">_</span>
-        )}
-      </pre>
-    </ScrollArea>
-    
-    {/* Este é o novo "Input" que aparece no console
-      quando o isWaitingForInput é true.
-    */}
-    <div className="mt-2">
-      {isWaitingForInput ? (
-        <Input
-          value={currentInputValue}
-          onChange={(e) => setCurrentInputValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              handleConsoleSubmit(e.currentTarget.value);
-            }
-          }}
-          placeholder="Digite sua entrada e pressione Enter..."
-          autoFocus
-          className="bg-black/90 text-green-400 border-green-700 font-mono placeholder:text-gray-600"
-        />
-      ) : (
-        // Um espaçador para manter o layout consistente
-        <div className="h-[40px]" />
-      )}
-    </div>
-  </CardContent>
-</Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Console</CardTitle>
+            <CardDescription>Saída da execução</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[360px] w-full rounded-md border bg-black/90 p-4">
+              <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
+                {output || "Aguardando execução..."}
+                {isWaitingForInput && <span className="animate-pulse">_</span>}
+              </pre>
+            </ScrollArea>
+            <div className="mt-2">
+              {isWaitingForInput ? (
+                <Input
+                  value={currentInputValue}
+                  onChange={(e) => setCurrentInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleConsoleSubmit(e.currentTarget.value);
+                    }
+                  }}
+                  placeholder="Digite sua entrada e pressione Enter..."
+                  autoFocus
+                  className="bg-black/90 text-green-400 border-green-700 font-mono placeholder:text-gray-600"
+                />
+              ) : (
+                <div className="h-[40px]" />
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Histórico */}
@@ -335,8 +376,11 @@ const handleConsoleSubmit = (value: string) => {
                   <Card key={index} className={item.error ? "border-destructive" : ""}>
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm">
+                        <CardTitle className="text-sm flex items-center gap-2">
                           Execução #{history.length - index}
+                          <Badge variant="outline" className="text-[10px]">
+                            {LANG_LABELS[item.language]}
+                          </Badge>
                         </CardTitle>
                         <span className="text-xs text-muted-foreground">
                           {item.timestamp.toLocaleTimeString()}
@@ -352,12 +396,9 @@ const handleConsoleSubmit = (value: string) => {
                             height="auto"
                             maxHeight="150px"
                             theme={oneDark}
-                            extensions={[python()]}
+                            extensions={item.language === "python" ? [python()] : item.language === "javascript" ? [javascript()] : [cpp()]}
                             editable={false}
-                            basicSetup={{
-                              lineNumbers: false,
-                              foldGutter: false,
-                            }}
+                            basicSetup={{ lineNumbers: false, foldGutter: false }}
                           />
                         </div>
                       </div>
@@ -365,13 +406,7 @@ const handleConsoleSubmit = (value: string) => {
                         <p className="text-xs text-muted-foreground mb-1">
                           {item.error ? "Erro:" : "Saída:"}
                         </p>
-                        <pre
-                          className={`text-xs p-2 rounded-md border font-mono whitespace-pre-wrap ${
-                            item.error
-                              ? "bg-destructive/10 text-destructive"
-                              : "bg-muted"
-                          }`}
-                        >
+                        <pre className={`text-xs p-2 rounded-md border font-mono whitespace-pre-wrap ${item.error ? "bg-destructive/10 text-destructive" : "bg-muted"}`}>
                           {item.error || item.output}
                         </pre>
                       </div>
@@ -383,8 +418,6 @@ const handleConsoleSubmit = (value: string) => {
           )}
         </CardContent>
       </Card>
-
-      
     </div>
   );
 }
