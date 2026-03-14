@@ -61,12 +61,12 @@ export default function IDE() {
     }
   }, [language]);
 
-  const isReady = language === "python" ? isPyodideReady : language === "javascript" ? true : false;
+  const isReady = language === "python" ? isPyodideReady : true;
   const statusLabel = language === "python"
     ? (isPyodideReady ? "Python Pronto" : "Carregando Python...")
     : language === "javascript"
       ? "JavaScript Pronto"
-      : "C++ (em breve)";
+      : "C++ Pronto";
 
   // Inicializar Pyodide
   useEffect(() => {
