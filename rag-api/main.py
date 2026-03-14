@@ -57,7 +57,7 @@ vector_db = MongoDBAtlasVectorSearch(
     embedding=embeddings,
     index_name=INDEX_NAME
 )
-
+collection.delete_many({})
 # Verifica se o banco já foi populado anteriormente
 if collection.count_documents({}) == 0:
     print("Coleção MongoDB vazia. Iniciando a leitura dos documentos...")
@@ -110,7 +110,7 @@ if collection.count_documents({}) == 0:
             try:
                 loader = RecursiveUrlLoader(
                     url=url,
-                    max_depth=3,
+                    max_depth=2,
                     extractor=extrair_texto_limpo,
                     headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
