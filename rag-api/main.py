@@ -4,9 +4,10 @@ from bs4 import BeautifulSoup
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from pymongo import MongoClient
 
 # Importações do LangChain
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import MongoDBAtlasVectorSearch
 from langchain_community.embeddings import HuggingFaceEmbeddings 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
@@ -41,32 +42,36 @@ except Exception as e:
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3) 
 
-# --- CARREGAMENTO DE DOCUMENTOS (PDFs + WEB) E BANCO VETORIAL ---
+# --- CONEXÃO COM MONGODB E INICIALIZAÇÃO DO VECTOR STORE ---
 
-INDEX_PATH = "faiss_docs_index"
-vector_db = None
-retriever = None
+MONGO_URI = os.getenv("MONGO_URI")
+DB_NAME = "rag_db"
+COLLECTION_NAME = "documentos"
+INDEX_NAME = "vector_index"
 
-# Lista de PDFs locais
-lista_de_documentos_pdf = [
-    "Documentação Syna-2.pdf",
-    "Documentação APS.pdf",
-    "Documentação Alimentadores.pdf",
-    "Documentação NEXA.pdf",
-]
+client = MongoClient(MONGO_URI)
+collection = client[DB_NAME][COLLECTION_NAME]
 
-# Verifica se o banco já foi criado anteriormente
-if os.path.exists(INDEX_PATH):
-    print(f"Carregando Vector DB salvo localmente na pasta '{INDEX_PATH}'...")
-    vector_db = FAISS.load_local(INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
-    retriever = vector_db.as_retriever(search_kwargs={"k": 5})
-    print("Vector DB carregado com sucesso!")
-else:
-    print("Nenhum cache encontrado. Iniciando a leitura dos PDFs e o web scraping...")
+vector_db = MongoDBAtlasVectorSearch(
+    collection=collection,
+    embedding=embeddings,
+    index_name=INDEX_NAME
+)
+
+# Verifica se o banco já foi populado anteriormente
+if collection.count_documents({}) == 0:
+    print("Coleção MongoDB vazia. Iniciando a leitura dos documentos...")
     documentos_totais = []
 
     # 1. Carregar Documentos Locais (PDFs)
     print("\n--- Carregando PDFs ---")
+    lista_de_documentos_pdf = [
+        "Documentação Syna-2.pdf",
+        "Documentação APS.pdf",
+        "Documentação Alimentadores.pdf",
+        "Documentação NEXA.pdf",
+    ]
+    
     for caminho_do_pdf in lista_de_documentos_pdf:
         try:
             if not os.path.exists(caminho_do_pdf):
@@ -83,57 +88,63 @@ else:
     # 2. Carregar Documentação Web (C++ e JavaScript)
     print("\n--- Carregando Documentação Web (C++ e JS) ---")
     
-    # Lista de URLs oficiais/tutoriais para as linguagens
     urls_documentacao = [
-        # JavaScript (Funcionando)
         #"https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Guide", 
-        
-        #"https://docs.python.org/3/tutorial/index.html", #Max depth = 2
-        
-        # Alternativa C++ (cppreference - Referência muito completa)
-         #"https://pt.cppreference.com/w/cpp/language" #funcionando
+        #"https://pt.cppreference.com/w/cpp/language"
     ]
     
     def extrair_texto_limpo(html_content):
         soup = BeautifulSoup(html_content, "html.parser")
-        for script in soup(["script", "style", "nav", "footer", "header"]): # Removendo tags desnecessárias para focar no conteúdo
+        for script in soup(["script", "style", "nav", "footer", "header"]):
             script.extract()
         return soup.get_text(separator=" ", strip=True)
 
-    for url in urls_documentacao:
-        print(f"Iniciando extração de: {url}")
-        try:
-            loader = RecursiveUrlLoader(
-                url=url,
-                max_depth=2, # Mantemos 1 para não sobrecarregar
-                extractor=extrair_texto_limpo,
-                # ADICIONE O HEADER ABAIXO PARA EVITAR BLOQUEIOS
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                }
-            )
-            docs_web = loader.load()
-            documentos_totais.extend(docs_web)
-            print(f"Web Scraping concluído para {url}. {len(docs_web)} páginas extraídas.")
-        except Exception as e:
-            print(f"Erro ao realizar web scraping da URL {url}: {e}")
+    # ---> CONTROLE DE INSERÇÃO WEB <---
+    # Mude para True futuramente quando quiser processar os links e jogar no MongoDB
+    INSERIR_WEB_NO_BANCO = False
 
-    # 3. Processar e Criar o Banco Vetorial
-    print(f"\nTotal combinado: {len(documentos_totais)} páginas/documentos.")
+    if INSERIR_WEB_NO_BANCO:
+        for url in urls_documentacao:
+            print(f"Iniciando extração de: {url}")
+            try:
+                loader = RecursiveUrlLoader(
+                    url=url,
+                    max_depth=2,
+                    extractor=extrair_texto_limpo,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    }
+                )
+                docs_web = loader.load()
+                documentos_totais.extend(docs_web)
+                print(f"Web Scraping concluído para {url}. {len(docs_web)} páginas extraídas.")
+            except Exception as e:
+                print(f"Erro ao realizar web scraping da URL {url}: {e}")
+    else:
+        print("Web Scraping mantido no código, mas DESATIVADO para inserção no BD por agora (INSERIR_WEB_NO_BANCO = False).")
+
+    # 3. Processar e Inserir no Banco Vetorial
     if documentos_totais:
+        print(f"\nTotal combinado: {len(documentos_totais)} páginas/documentos.")
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
         chunks = text_splitter.split_documents(documentos_totais)
         
-        print(f"Criando Vector DB com {len(chunks)} chunks de texto...")
-        vector_db = FAISS.from_documents(chunks, embeddings)
-        retriever = vector_db.as_retriever(search_kwargs={"k": 5})
-        
-        print(f"Salvando Vector DB localmente na pasta '{INDEX_PATH}'...")
-        vector_db.save_local(INDEX_PATH)
-        print("Vector DB criado e salvo com sucesso!")
+        print(f"Criando Vector DB com {len(chunks)} chunks de texto e enviando para o MongoDB...")
+        MongoDBAtlasVectorSearch.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            collection=collection,
+            index_name=INDEX_NAME
+        )
+        print("Vector DB criado e salvo com sucesso no MongoDB Atlas!")
     else:
         print("Nenhum documento (PDF ou Web) foi carregado.")
-        retriever = None
+
+else:
+    print(f"Documentos já encontrados no MongoDB Atlas ({collection.count_documents({})} chunks). Pulando a leitura e inserção.")
+
+# Habilitando o retriever do banco
+retriever = vector_db.as_retriever(search_kwargs={"k": 5})
 
 # --- DEFINIÇÃO DA API COM FASTAPI ---
 
@@ -205,34 +216,6 @@ async def chat(request: ChatRequest) -> ChatResponse:
     
     bot_response = rag_chain.invoke(request.user_question)
     return ChatResponse(response=bot_response)
-
-def invoke_challenge_agent(question: str) -> str:
-    from operator import itemgetter # Import necessário para esta função funcionar corretamente
-    
-    if not retriever:
-        return "Erro: O sistema de busca (RAG) não foi inicializado no Agente de Desafios."
-
-    rag_chain = (
-        {
-            "context": itemgetter("message") | retriever,
-            "question": itemgetter("message"),
-            "num_questions": itemgetter("num_questions")
-        }
-        | prompt_template_desafio # ATENÇÃO: Verifique se este template está definido no seu escopo
-        | llm
-        | StrOutputParser()
-    )
-
-    try:
-        # Invoca a chain passando a pergunta e fixando em 3 desafios por padrão
-        bot_response_string = rag_chain.invoke({
-            "message": question,
-            "num_questions": 3 
-        })
-        return bot_response_string
-    except Exception as e:
-        print(f"Erro na execução do invoke_challenge_agent: {e}")
-        return f"Erro ao gerar desafios: {e}"
 
 if __name__ == "__main__":
     import uvicorn

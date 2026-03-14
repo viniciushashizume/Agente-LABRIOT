@@ -1,26 +1,22 @@
 # challenge_agent.py
 
 import os
-import requests
 import json
-from io import BytesIO
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, List
 from operator import itemgetter
+from pymongo import MongoClient
 
 # Importações do LangChain
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import MongoDBAtlasVectorSearch
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.output_parser import StrOutputParser
 
-# Carregue sua chave de API a partir de um arquivo .env (recomendado)
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -41,46 +37,27 @@ except Exception as e:
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.8)
 
-# --- Lógica de carregamento de múltiplos documentos ---
-lista_de_documentos_pdf = [
-    "Documentação Syna-2.pdf",
-    "Documentação APS.pdf",
-    "Documentação Alimentadores.pdf",
-    "Documentação NEXA.pdf",
-]
-documentos_totais = []
-print("Iniciando o carregamento dos documentos locais (Agente de Desafios)...")
-for caminho_do_pdf in lista_de_documentos_pdf:
-    try:
-        if not os.path.exists(caminho_do_pdf):
-            print(f"Erro: Arquivo não encontrado no caminho: {caminho_do_pdf}")
-            print(f"Pulando o arquivo '{caminho_do_pdf}'...")
-            continue
-        loader = PyPDFLoader(caminho_do_pdf)
-        paginas = loader.load()
-        documentos_totais.extend(paginas)
-        print(f"Documento '{caminho_do_pdf}' carregado com sucesso ({len(paginas)} páginas).")
-    except Exception as e:
-        print(f"Erro ao processar o PDF '{caminho_do_pdf}': {e}")
-        print(f"Pulando o arquivo '{caminho_do_pdf}'...")
-print(f"\nCarregamento concluído. Total de páginas de todos os documentos: {len(documentos_totais)}")
+# --- CONEXÃO COM MONGODB ---
+MONGO_URI = os.getenv("MONGO_URI")
+DB_NAME = "rag_db"
+COLLECTION_NAME = "documentos"
+INDEX_NAME = "vector_index"
 
-# --- Dividir os documentos e criar o Vector DB ---
-vector_db = None
-if documentos_totais:
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-    chunks = text_splitter.split_documents(documentos_totais)
-    print(f"Criando Vector DB com {len(chunks)} chunks de {len(lista_de_documentos_pdf)} documento(s)...")
-    vector_db = FAISS.from_documents(chunks, embeddings)
-    
-    retriever = vector_db.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": 10, "fetch_k": 30}
-    )
-    print("Vector DB (MMR) criado com sucesso!")
-else:
-    print("Nenhum documento foi carregado. A API não pode iniciar o RAG.")
-    retriever = None
+client = MongoClient(MONGO_URI)
+collection = client[DB_NAME][COLLECTION_NAME]
+
+print("Conectando ao MongoDB Atlas (Agente de Desafios)...")
+vector_db = MongoDBAtlasVectorSearch(
+    collection=collection,
+    embedding=embeddings,
+    index_name=INDEX_NAME
+)
+
+retriever = vector_db.as_retriever(
+    search_type="mmr",
+    search_kwargs={"k": 10, "fetch_k": 30}
+)
+print("Conexão com Vector DB estabelecida com sucesso!")
 
 # --- DEFINIÇÃO DA API COM FASTAPI ---
 app = FastAPI()
@@ -216,7 +193,6 @@ async def generate_challenge(request: ChatRequest) -> ChallengeResponse:
         
         try:
             clean_response_string = bot_response_string.strip().lstrip("```json").rstrip("```").strip()
-            
             json_start = clean_response_string.find('[')
             json_end = clean_response_string.rfind(']')
             
@@ -224,39 +200,26 @@ async def generate_challenge(request: ChatRequest) -> ChallengeResponse:
                  raise json.JSONDecodeError("Nenhum array JSON válido encontrado.", clean_response_string, 0)
                  
             json_string = clean_response_string[json_start:json_end+1]
-            
             challenge_data = json.loads(json_string)
             
-            if not isinstance(challenge_data, list):
-                 raise ValueError("JSON retornado pelo LLM não é um array (lista).")
-
-            if not challenge_data:
-                raise ValueError("LLM retornou um array vazio.")
+            if not isinstance(challenge_data, list) or not challenge_data:
+                 raise ValueError("JSON retornado pelo LLM inválido ou vazio.")
 
             return ChallengeResponse(challenges=challenge_data) 
         
-        except json.JSONDecodeError as e:
-            print(f"Erro: LLM não retornou ARRAY JSON válido. Erro: {e}. Resposta:\n{bot_response_string}")
-            error_challenge["description"] = "O assistente não conseguiu formatar os desafios (JSON). Tente gerar novamente."
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"Erro na extração do JSON: {e}")
+            error_challenge["description"] = "Falha ao formatar os desafios (JSON). Tente gerar novamente."
             return ChallengeResponse(challenges=[error_challenge])
-        except ValueError as ve:
-             print(f"Erro: {ve}. Resposta:\n{bot_response_string}")
-             error_challenge["description"] = "O assistente não retornou a estrutura de array esperada. Tente gerar novamente."
-             return ChallengeResponse(challenges=[error_challenge])
 
     except Exception as e:
         print(f"Erro inesperado na chain RAG: {e}")
         error_challenge["description"] = f"Erro interno no servidor: {e}"
         return ChallengeResponse(challenges=[error_challenge])
 
-# --- FUNÇÃO PARA INTEGRAÇÃO COM MAIN.PY ---
 def invoke_challenge_agent(question: str) -> str:
-    """
-    Função auxiliar para permitir que o main.py importe e chame o agente diretamente
-    sem precisar fazer uma requisição HTTP.
-    """
     if not retriever:
-        return "Erro: O sistema de busca (RAG) não foi inicializado no Agente de Desafios."
+        return "Erro: O sistema de busca (RAG) não foi inicializado."
 
     rag_chain = (
         {
@@ -270,18 +233,15 @@ def invoke_challenge_agent(question: str) -> str:
     )
 
     try:
-        # Invoca a chain passando a pergunta e fixando em 3 desafios por padrão
-        bot_response_string = rag_chain.invoke({
+        return rag_chain.invoke({
             "message": question,
             "num_questions": 3 
         })
-        return bot_response_string
     except Exception as e:
         print(f"Erro na execução do invoke_challenge_agent: {e}")
         return f"Erro ao gerar desafios: {e}"
 
-
 if __name__ == "__main__":
     import uvicorn
-    print("Iniciando a API de DESAFIOS (v2 - Apenas Múltipla Escolha) em http://localhost:8001")
+    print("Iniciando a API de DESAFIOS (v2) em http://localhost:8001")
     uvicorn.run(app, host="0.0.0.0", port=8001)
