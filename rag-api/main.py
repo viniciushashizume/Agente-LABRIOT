@@ -57,7 +57,7 @@ vector_db = MongoDBAtlasVectorSearch(
     embedding=embeddings,
     index_name=INDEX_NAME
 )
-collection.delete_many({})
+#collection.delete_many({})
 # Verifica se o banco já foi populado anteriormente
 if collection.count_documents({}) == 0:
     print("Coleção MongoDB vazia. Iniciando a leitura dos documentos...")

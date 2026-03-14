@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+// Adicione as importações do SyntaxHighlighter aqui:
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface MessageBubbleProps {
   message: string;
@@ -31,20 +34,26 @@ export const MessageBubble = ({ message, isUser, timestamp }: MessageBubbleProps
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                code: ({ node, className, children, ...props }) => {
+                // Aqui é onde a magia acontece. Vamos atualizar o componente 'code'
+                code: ({ node, className, children, ...props }: any) => {
                   const match = /language-(\w+)/.exec(className || "");
                   const isInline = !match;
                   
-                  return isInline ? (
-                    <code
-                      className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm"
+                  return !isInline && match ? (
+                    // Bloco de código longo (com syntax highlighting)
+                    <SyntaxHighlighter
+                      style={vscDarkPlus as any}
+                      language={match[1]}
+                      PreTag="div"
+                      className="rounded-md my-2 !text-sm"
                       {...props}
                     >
-                      {children}
-                    </code>
+                      {String(children).replace(/\n$/, '')}
+                    </SyntaxHighlighter>
                   ) : (
+                    // Código inline (quando se usa apenas uma crase)
                     <code
-                      className={cn("block rounded-lg bg-muted p-4 font-mono text-sm", className)}
+                      className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm"
                       {...props}
                     >
                       {children}
