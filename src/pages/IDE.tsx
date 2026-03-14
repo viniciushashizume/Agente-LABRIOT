@@ -176,6 +176,28 @@ builtins.input = custom_input
     return logs.length > 0 ? logs.join('\n') : "Código executado com sucesso (sem output)";
   };
 
+  // Execute C++
+  const executeCpp = async () => {
+    const outputBuffer: string[] = [];
+    
+    const config = {
+      stdio: {
+        write: (s: string) => {
+          outputBuffer.push(s);
+        },
+      },
+      unsigned_overflow: "warn" as const,
+    };
+
+    const exitCode = JSCPP.run(code, "", config);
+    const result = outputBuffer.join('');
+    
+    if (result) {
+      return result + `\n[Processo finalizado com código ${exitCode}]`;
+    }
+    return `Código executado com sucesso (código de saída: ${exitCode})`;
+  };
+
   // Main execute
   const executeCode = async () => {
     if (!code.trim() || !isReady) return;
