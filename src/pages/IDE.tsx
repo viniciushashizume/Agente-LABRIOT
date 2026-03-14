@@ -276,10 +276,6 @@ builtins.input = custom_input
               <Terminal className="h-5 w-5" />
               <span className="font-medium text-sm">{statusLabel}</span>
             </div>
-          ) : language === "cpp" ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="text-sm">{statusLabel}</span>
-            </div>
           ) : (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
