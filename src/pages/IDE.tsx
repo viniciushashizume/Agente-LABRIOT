@@ -12,6 +12,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import JSCPP from "JSCPP";
 
 type Language = "python" | "javascript" | "cpp";
 
@@ -60,12 +61,12 @@ export default function IDE() {
     }
   }, [language]);
 
-  const isReady = language === "python" ? isPyodideReady : language === "javascript" ? true : false;
+  const isReady = language === "python" ? isPyodideReady : true;
   const statusLabel = language === "python"
     ? (isPyodideReady ? "Python Pronto" : "Carregando Python...")
     : language === "javascript"
       ? "JavaScript Pronto"
-      : "C++ (em breve)";
+      : "C++ Pronto";
 
   // Inicializar Pyodide
   useEffect(() => {
@@ -175,6 +176,28 @@ builtins.input = custom_input
     return logs.length > 0 ? logs.join('\n') : "Código executado com sucesso (sem output)";
   };
 
+  // Execute C++
+  const executeCpp = async () => {
+    const outputBuffer: string[] = [];
+    
+    const config = {
+      stdio: {
+        write: (s: string) => {
+          outputBuffer.push(s);
+        },
+      },
+      unsigned_overflow: "warn" as const,
+    };
+
+    const exitCode = JSCPP.run(code, "", config);
+    const result = outputBuffer.join('');
+    
+    if (result) {
+      return result + `\n[Processo finalizado com código ${exitCode}]`;
+    }
+    return `Código executado com sucesso (código de saída: ${exitCode})`;
+  };
+
   // Main execute
   const executeCode = async () => {
     if (!code.trim() || !isReady) return;
@@ -190,8 +213,7 @@ builtins.input = custom_input
       } else if (language === "javascript") {
         result = await executeJavaScript();
       } else {
-        toast({ title: "Em breve", description: "Suporte a C++ será adicionado em breve!", variant: "destructive" });
-        return;
+        result = await executeCpp();
       }
 
       setOutput(result);
@@ -242,11 +264,8 @@ builtins.input = custom_input
               <TabsTrigger value="javascript" className="gap-1.5">
                 ⚡ JavaScript
               </TabsTrigger>
-              <TabsTrigger value="cpp" className="gap-1.5 relative">
+              <TabsTrigger value="cpp" className="gap-1.5">
                 ⚙️ C++
-                <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 leading-tight">
-                  Em breve
-                </Badge>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -256,10 +275,6 @@ builtins.input = custom_input
             <div className="flex items-center gap-2 text-green-600">
               <Terminal className="h-5 w-5" />
               <span className="font-medium text-sm">{statusLabel}</span>
-            </div>
-          ) : language === "cpp" ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <span className="text-sm">{statusLabel}</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-muted-foreground">
