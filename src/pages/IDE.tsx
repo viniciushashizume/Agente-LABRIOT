@@ -213,8 +213,7 @@ builtins.input = custom_input
       } else if (language === "javascript") {
         result = await executeJavaScript();
       } else {
-        toast({ title: "Em breve", description: "Suporte a C++ será adicionado em breve!", variant: "destructive" });
-        return;
+        result = await executeCpp();
       }
 
       setOutput(result);
