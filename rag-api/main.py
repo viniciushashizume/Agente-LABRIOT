@@ -11,11 +11,12 @@ from langchain_community.vectorstores import MongoDBAtlasVectorSearch
 from langchain_community.embeddings import HuggingFaceEmbeddings 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
-from langchain.schema.runnable import RunnablePassthrough
-from langchain.schema.output_parser import StrOutputParser
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
 # Carregue sua chave de API a partir de um arquivo .env (recomendado)
 from dotenv import load_dotenv
