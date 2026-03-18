@@ -102,7 +102,7 @@ if collection.count_documents({}) == 0:
 
     # ---> CONTROLE DE INSERÇÃO WEB <---
     # Mude para True futuramente quando quiser processar os links e jogar no MongoDB
-    INSERIR_WEB_NO_BANCO = True
+    INSERIR_WEB_NO_BANCO = False
 
     if INSERIR_WEB_NO_BANCO:
         for url in urls_documentacao:
