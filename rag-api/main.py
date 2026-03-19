@@ -25,15 +25,15 @@ model_name = "sentence-transformers/all-MiniLM-L6-v2"
 model_kwargs = {'device': 'cpu'}
 encode_kwargs = {'normalize_embeddings': False}
 
-try:
-    embeddings = HuggingFaceEmbeddings(
-        model_name=model_name,
-        model_kwargs=model_kwargs,
-        encode_kwargs=encode_kwargs
-    )
-except Exception as e:
-    print(f"Erro ao carregar o modelo de embedding: {e}")
-    exit()
+_embeddings_instance = None 
+
+def get_embeddings():
+    """Função para carregar o modelo apenas quando for necessário"""
+    global _embeddings_instance
+    if _embeddings_instance is None:
+        from langchain_huggingface import HuggingFaceEmbeddings
+        _embeddings_instance = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return _embeddings_instance
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3) 
 
@@ -50,7 +50,7 @@ collection = client[DB_NAME][COLLECTION_NAME]
 # Apenas inicializa a conexão com o banco que já tem os dados (Sem Scraping/Leitura de PDFs)
 vector_db = MongoDBAtlasVectorSearch(
     collection=collection,
-    embedding=embeddings,
+    embedding=get_embeddings(),
     index_name=INDEX_NAME
 )
 
