@@ -6,13 +6,11 @@ from pymongo import MongoClient
 
 # Importações do LangChain
 from langchain_community.vectorstores import MongoDBAtlasVectorSearch
-from langchain_community.embeddings import HuggingFaceEmbeddings 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
-# Carregue sua chave de API a partir de um arquivo .env (recomendado localmente)
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -21,19 +19,10 @@ from validation_agent import invoke_validation_agent
 
 # --- CONFIGURAÇÃO INICIAL E CARREGAMENTO DO MODELO ---
 
-model_name = "sentence-transformers/all-MiniLM-L6-v2"
-model_kwargs = {'device': 'cpu'}
-encode_kwargs = {'normalize_embeddings': False}
-
-_embeddings_instance = None 
-
 def get_embeddings():
-    """Função para carregar o modelo apenas quando for necessário"""
-    global _embeddings_instance
-    if _embeddings_instance is None:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        _embeddings_instance = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return _embeddings_instance
+    """Usa a API do Google para Embeddings. Zero consumo de memória local."""
+    # O modelo 'text-embedding-004' é o padrão atual do Google para RAG
+    return GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3) 
 
@@ -47,14 +36,12 @@ INDEX_NAME = "vector_index"
 client = MongoClient(MONGO_URI)
 collection = client[DB_NAME][COLLECTION_NAME]
 
-# Apenas inicializa a conexão com o banco que já tem os dados (Sem Scraping/Leitura de PDFs)
 vector_db = MongoDBAtlasVectorSearch(
     collection=collection,
     embedding=get_embeddings(),
     index_name=INDEX_NAME
 )
 
-# Habilitando o retriever do banco
 retriever = vector_db.as_retriever(search_kwargs={"k": 5})
 
 # --- DEFINIÇÃO DA API COM FASTAPI ---
@@ -65,9 +52,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:8080",
-        "http://localhost:5173",   # Porta padrão do Vite (React)
-        "http://127.0.0.1:5173",   # Variação comum do Vite
-        "http://localhost:3000"    # Caso esteja usando React scripts
+        "http://localhost:5173",   
+        "http://127.0.0.1:5173",   
+        "http://localhost:3000"    
     ], 
     allow_credentials=True,
     allow_methods=["*"],
@@ -131,8 +118,3 @@ async def chat(request: ChatRequest) -> ChatResponse:
     
     bot_response = rag_chain.invoke(request.user_question)
     return ChatResponse(response=bot_response)
-
-if __name__ == "__main__":
-    import uvicorn
-    print("Iniciando a API em http://localhost:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)

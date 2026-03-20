@@ -12,8 +12,7 @@ from pymongo import MongoClient
 
 # Importações do LangChain
 from langchain_community.vectorstores import MongoDBAtlasVectorSearch
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.output_parser import StrOutputParser
@@ -22,19 +21,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO INICIAL E CARREGAMENTO DO MODELO ---
-model_name = "sentence-transformers/all-MiniLM-L6-v2"
-model_kwargs = {'device': 'cpu'}
-encode_kwargs = {'normalize_embeddings': False}
 
-try:
-    embeddings = HuggingFaceEmbeddings(
-        model_name=model_name,
-        model_kwargs=model_kwargs,
-        encode_kwargs=encode_kwargs
-    )
-except Exception as e:
-    print(f"Erro ao carregar o modelo de embedding: {e}")
-    exit()
+# Utilizando a API do Google para Embeddings em vez de modelo local
+embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.1) 
 

@@ -11,8 +11,7 @@ from pymongo import MongoClient
 
 # Importações do LangChain
 from langchain_community.vectorstores import MongoDBAtlasVectorSearch
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
@@ -21,29 +20,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- CONFIGURAÇÃO INICIAL E CARREGAMENTO DO MODELO ---
-model_name = "sentence-transformers/all-MiniLM-L6-v2"
-model_kwargs = {'device': 'cpu'}
-encode_kwargs = {'normalize_embeddings': False}
-
-'''try:
-    embeddings = HuggingFaceEmbeddings(
-        model_name=model_name,
-        model_kwargs=model_kwargs,
-        encode_kwargs=encode_kwargs
-    )
-except Exception as e:
-    print(f"Erro ao carregar o modelo de embedding: {e}")
-    exit()'''
-
-_embeddings_instance = None 
 
 def get_embeddings():
-    """Função para carregar o modelo apenas quando for necessário"""
-    global _embeddings_instance
-    if _embeddings_instance is None:
-        from langchain_huggingface import HuggingFaceEmbeddings
-        _embeddings_instance = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return _embeddings_instance
+    """Usa a API do Google para Embeddings. Zero consumo de memória local."""
+    return GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.8)
 

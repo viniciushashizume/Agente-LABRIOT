@@ -4,14 +4,6 @@ pydantic
 langchain
 langchain-core
 langchain-community
-langchain-text-splitters
 langchain-google-genai
-langchain_huggingface
-google-ai-generativelanguage
-sentence-transformers
-faiss-cpu
-pypdf
-unstructured
-python-dotenv
-beautifulsoup4
 pymongo
+python-dotenv
