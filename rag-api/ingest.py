@@ -1,7 +1,7 @@
 import os
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
-
+import time
 # Importações do LangChain
 from langchain_community.vectorstores import MongoDBAtlasVectorSearch
 from langchain_community.document_loaders import PyPDFLoader
@@ -15,7 +15,7 @@ load_dotenv()
 # --- CONFIGURAÇÃO INICIAL E CARREGAMENTO DO MODELO ---
 # Usando a API do Google para Embeddings em vez do modelo local pesado.
 # Isso vai gerar vetores de 768 dimensões.
-embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
 
 # --- CONEXÃO COM MONGODB ---
 MONGO_URI = os.getenv("MONGO_URI")
@@ -102,14 +102,25 @@ if documentos_totais:
     chunks = text_splitter.split_documents(documentos_totais)
     
     print(f"Dividido em {len(chunks)} chunks de texto.")
-    print("Gerando Embeddings via API do Google e enviando para o MongoDB (Isso pode levar alguns minutos)...")
+    print("Gerando Embeddings em lotes via API do Google...")
     
-    MongoDBAtlasVectorSearch.from_documents(
-        documents=chunks,
-        embedding=embeddings,
+    # 1. Cria a conexão com o banco vetorial vazia
+    from langchain_community.vectorstores import MongoDBAtlasVectorSearch
+    vector_store = MongoDBAtlasVectorSearch(
         collection=collection,
+        embedding=embeddings,
         index_name=INDEX_NAME
     )
+    
+    # 2. Divide em lotes de 200 blocos e envia com pausa
+    tamanho_lote = 200
+    for i in range(0, len(chunks), tamanho_lote):
+        lote = chunks[i : i + tamanho_lote]
+        print(f"Enviando lote {i} até {i + len(lote)} (de {len(chunks)})...")
+        vector_store.add_documents(lote)
+        
+        # Pausa de 20 segundos para não irritar o Google
+        print("Pausa de 20 segundos para respeitar o limite gratuito...")
+        time.sleep(20)
+
     print("Vector DB populado e salvo com sucesso no MongoDB Atlas!")
-else:
-    print("Nenhum documento (PDF ou Web) foi carregado.")
